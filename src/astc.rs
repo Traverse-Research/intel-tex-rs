@@ -126,8 +126,8 @@ fn astc_rank(
 #[inline(always)]
 pub fn calc_output_size(width: u32, height: u32) -> usize {
     // ASTC uses a fixed block size of 16 bytes (128 bits).
-    let block_count = crate::divide_up_by_multiple(width * height, 16);
-    block_count as usize * 16
+    let block_count = (width as usize * height as usize).div_ceil(16);
+    block_count * 16
 }
 
 pub fn compress_blocks(settings: &EncodeSettings, surface: &RgbaSurface) -> Vec<u8> {
@@ -146,6 +146,7 @@ pub fn compress_blocks_into(settings: &EncodeSettings, surface: &RgbaSurface, bl
         blocks.len(),
         calc_output_size(surface.width, surface.height)
     );
+    assert!(surface.data.len() >= surface.height as usize * surface.stride as usize);
 
     let tex_width = surface.width / settings.block_width;
     let program_count = unsafe { kernel_astc::get_programCount() as u32 };
@@ -176,7 +177,7 @@ pub fn compress_blocks_into(settings: &EncodeSettings, surface: &RgbaSurface, bl
     };
 
     for yy in 0..(surface.height / settings.block_height) as u32 {
-        for xx in 0..((tex_width + program_count - 1) / program_count) {
+        for xx in 0..tex_width.div_ceil(program_count) {
             let xx = xx * program_count;
             astc_rank(&mut settings, &mut surface, xx, yy, &mut mode_buffer);
             for i in 0..settings.fastSkipTreshold as u32 {
